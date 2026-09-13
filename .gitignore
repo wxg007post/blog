@@ -23,8 +23,8 @@ id_ed25519
 # ===== 系统与编辑器 =====
 Thumbs.db
 .DS_Store
-.obsidian/workspace*.json
-.obsidian/cache
+**/.obsidian/workspace*.json
+**/.obsidian/cache
 
 # ===== 依赖（将来若用到 npm 工具）=====
 node_modules/
