@@ -36,7 +36,7 @@
 | 中文计数（CJK） | ✅ 示例文章显示「530 字 · 2 分钟」，**不再出现「1 词 · 1 分钟阅读」** |
 | 搜索索引 | ✅ 仅含真实文章（修复前含 `Tags`/`Categories`/`Posts` 等空页） |
 | 中文搜索四类查询 | ✅ 连续词 / 带空格多词 / **仅标签** / **仅分类** 全部命中（用主题自带 Fuse 实测） |
-| 代码复制按钮 | ✅ `enableCodeCopy = true` + `markup.highlight.noClasses = false` 已满足前提 |
+| 代码复制按钮 | ✅ `enableCodeCopy = true`；已核实打包后的 `main.bundle.min.*.js` 含 `copy-button` 逻辑，文章页有 5 个代码块容器可供注入 |
 | 图片处理 | ✅ 占位封面 PNG 被 Hugo 处理并生成多尺寸变体 |
 | 写作模板泄露 | ✅ 已修复（模板目录用 `build.render: never` + `cascade` 排除） |
 
