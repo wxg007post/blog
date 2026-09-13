@@ -1,0 +1,37 @@
+# -- 顶部菜单 --
+# 首页由站点标题承担（点标题回首页），所以这里只放 分类 / 标签 / 关于
+# 菜单默认按 name 字母序排列，用 weight 控制顺序（数字小的在前）
+
+[[main]]
+  name = "分类"
+  pageRef = "categories"
+  weight = 10
+
+[[main]]
+  name = "标签"
+  pageRef = "tags"
+  weight = 20
+
+[[main]]
+  name = "关于"
+  pageRef = "about"
+  weight = 30
+
+[[main]]
+  identifier = "github"
+  pre = "github"
+  url = "https://github.com/wxg007post"
+  weight = 40
+
+# -- 页脚菜单 --
+# 显示在页面底部（版权信息上方）
+
+[[footer]]
+  name = "标签"
+  pageRef = "tags"
+  weight = 10
+
+[[footer]]
+  name = "分类"
+  pageRef = "categories"
+  weight = 20

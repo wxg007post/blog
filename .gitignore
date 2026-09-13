@@ -1,0 +1,30 @@
+# ===== Hugo 构建产物（不需要进仓库，GitHub 会自己构建）=====
+public/
+resources/_gen/
+.hugo_build.lock
+
+# ===== 我的核查 / 临时目录 =====
+.research/
+.installer/
+.npm-cache/
+
+# ===== 密钥与隐私（永远不要提交）=====
+private/
+secrets/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# ===== 系统与编辑器 =====
+Thumbs.db
+.DS_Store
+.obsidian/workspace*.json
+.obsidian/cache
+
+# ===== 依赖（将来若用到 npm 工具）=====
+node_modules/

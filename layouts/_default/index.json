@@ -1,0 +1,22 @@
+{{- /* 本站覆盖主题的搜索索引模板（原因见《博客建设方案.md》3.6）
+       1) 只收录 content/posts/ 下的真实文章 —— 主题默认遍历 .Site.Pages，
+          把 /tags/、/categories/、/posts/ 这类空列表页也塞进了索引，会污染搜索结果；
+       2) 额外收录 tags 与 categories 字段 —— 主题默认不含，导致"搜标签名搜不到文章"。 */ -}}
+{{- $index := slice -}}
+{{- range where .Site.RegularPages "Section" "posts" -}}
+  {{- if not .Params.excludeFromSearch -}}
+    {{- $index = $index | append (dict
+      "date" (.Date | time.Format (.Site.Language.Params.dateFormat | default "2006-01-02"))
+      "title" (.Title | emojify | safeJS)
+      "section" (.CurrentSection.Title | emojify | safeJS)
+      "summary" (.Summary | plainify | htmlUnescape | safeJS)
+      "content" (.Plain | safeJS)
+      "tags" (.Params.tags | default slice)
+      "categories" (.Params.categories | default slice)
+      "permalink" .RelPermalink
+      "externalUrl" .Params.externalUrl
+      "type" .Type
+      ) -}}
+  {{- end -}}
+{{- end -}}
+{{- $index | jsonify -}}
