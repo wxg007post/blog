@@ -65,7 +65,7 @@ forgejoDefaultServer = "https://v11.next.forgejo.org"
   showScrollToTop = true
 
 [homepage]
-  layout = "page" # 第一版用 page（不需要头像/大图）；以后可换 profile / card / hero
+  layout = "profile" # 卡片式首页：头像 + 名字 + 简介 + 最近文章（想换纯文字首页就改成 page）
   # layoutSwitcher = false # opt-in interactive preview of the built-in layouts
   #homepageImage = "IMAGE.jpg" # used in: hero, and card
   showRecent = true

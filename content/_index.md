@@ -1,6 +1,6 @@
 ---
-title: "折腾笔记"
-description: "NAS、Docker、OpenWrt、软路由与游戏攻略 —— 折腾记录与经验总结"
+title: "时光笔记"
+description: "随便记点什么，只是做个记录。"
 ---
 
 这里放我平时折腾的记录，以及踩过的坑。
