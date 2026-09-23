@@ -125,7 +125,10 @@ Pages 未配自定义域名时会自动回退到 `https://<用户名>.github.io/
 
 1. CI 脚本里，**"自己的错误处理"必须先于"环境异常处理"**——否则后者永远不会生效；
 2. **"预期会出现的诊断没出现"本身就是证据**：说明脚本比你以为的更早就死了；
-3. 本环境限制：**agent 读不到 GitHub 的运行日志与 API**（注解正文是前端渲染，HTML 里没有；API 匿名限流在这条共享出口 IP 上长期为 0）→ 需要诊断时，请把运行页面上注解的文字**复制给 agent**。
+3. **网络能力的边界**（2026-09-23 实测，修正了此前"agent 读不到 GitHub API"的判断）：
+   - ✅ **GitHub 的运行结果能读到**：用 `web_fetch` 请求 `https://api.github.com/repos/wxg007post/blog/actions/runs?per_page=3` 返回 **200**，含 `head_sha`、`status`、`conclusion`、起止时间（靠它确认了 `77d4707` 的 run #10 成功）。harness 出口的匿名配额实测是正常的 **60 次/小时**（`/rate_limit` 返回 `remaining: 55`），而此前本机出口 IP 的匿名限流长期为 0——**两条出口不一样**，所以这条路可用；
+   - ✅ **注解正文也能读到**（旧结论"注解是前端渲染、读不到"同样被推翻）：`check-runs` 的返回里带 `annotations_url`，再请求一次就拿到注解原文——实测返回 `{"annotation_level":"notice","message":"The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. …"}`。路径：`/repos/<owner>/<repo>/commits/<sha>/check-runs` → 取每个 job 的 `annotations_url` → 请求它。**以后 CI 报错，agent 可以自己读注解，不必再让你复制运行页面上的文字**；
+   - ❌ **本站在 agent 侧打不开**：DSH 沙箱里命令行没有网络出口（`curl` 报 `schannel: SEC_E_NO_CREDENTIALS`，`Invoke-WebRequest` 报"基础连接已经关闭"）；`web_fetch` 虽能上外网（`example.com` 实测 200），但对本站域名失败——Cloudflare 拦 datacenter 出口（DNS 本身正常：解析到 `104.21.32.203` / `172.67.187.117`）。**线上效果请自己在浏览器确认**（呼应上面第 4 条）。
 
 ## ⚠️ 域名到期日（待你填写）
 
