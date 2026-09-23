@@ -12,7 +12,7 @@
 | 主题引入方式 | git submodule，`.gitmodules` 中 `shallow = true`（CI 也用浅克隆） |
 | 主题声明的 Hugo 区间 | `extended = true`、`min = 0.162.0`、`max = 0.165.0` |
 | 线上地址（当前） | **https://wxg007post.github.io/blog/**（2026-09-23 上线） |
-| 自定义域名 | `https://blog.wxgg.eu.cc/`（阶段 3 绑定；`baseURL` 已按此配置） |
+| 自定义域名 | **https://blog.wxgg.eu.cc/**（2026-09-23 已绑定，Cloudflare 代理 + HTTPS） |
 | GitHub 仓库 | **https://github.com/wxg007post/blog**（公开） |
 | 首次成功部署 | Actions 运行 `35803971748` → **Success**（步骤 42s / 27s / 8s） |
 | 提交身份 | `Wang xg <294689316+wxg007post@users.noreply.github.com>` |
@@ -70,6 +70,24 @@ Get Pages site failed. Please verify that the repository has Pages enabled and c
 - `发布前检查.ps1` 必须存成 **UTF-8 with BOM** —— PowerShell 5.1 读无 BOM 的 UTF-8 中文脚本会乱码甚至解析失败；
 - `发布前检查.cmd` 必须用 **CRLF** 换行且**只含 ASCII** —— cmd 用 OEM 代码页解码，LF 换行会让它把"半个单词"当命令执行。
 
+### ⚠️ 改域名 / 改仓库名之后，**必须重新构建一次**
+
+绑定自定义域名后，如果**没有重新构建**，站点会出现"能打开但没样式、图标巨大、头像不显示"：
+
+- 原因：上一次构建时 `configure-pages` 给的是 `https://wxg007post.github.io/blog`，Hugo 把资源路径写成了根相对的 `/blog/css/...`；
+- 域名生效后站点挂在**根目录**，浏览器去请求 `https://blog.wxgg.eu.cc/blog/css/...` → **全部 404**；
+- 解决：**触发一次新的构建**（推送任意提交，或在 Actions 里 Re-run all jobs）。新构建会从 Pages 配置里读到自定义域名，资源路径变成 `/css/...`，canonical 也会变成域名。
+
+**验证方法**（改域名后务必做一次）：
+1. 打开 `https://blog.wxgg.eu.cc/`，查看源代码；
+2. CSS/JS 的地址应是 `https://blog.wxgg.eu.cc/...`（**不带 `/blog/`**）；
+3. `<link rel="canonical">` 应指向 `https://blog.wxgg.eu.cc/`。
+
+### 部署后发现的 Cloudflare 观察
+
+- 站点响应头含 `server: cloudflare`、`cf-cache-status: DYNAMIC`（HTML 未被缓存，正常）；
+- Cloudflare 自动注入了 **Rocket Loader**（`/cdn-cgi/scripts/.../rocket-loader.min.js`）和 Web Analytics beacon。Rocket Loader 会延迟/改写页面 JS，**若发现搜索框或深色模式切换异常，先去 Cloudflare → Speed → Optimization 关掉 Rocket Loader**（这是常见冲突源）。
+
 ## ⚠️ 域名到期日（待你填写）
 
 `wxgg.eu.cc` 是 GNAME 的**免费**域名，续期**必须手动**：到期前 90 天内到 GNAME 活动页领券提交（在域名列表操作或开自动续费**都不生效**）。
@@ -84,3 +102,4 @@ Get Pages site failed. Please verify that the repository has Pages enabled and c
 |---|---|---|
 | 2026-09-12 | 初始化：Hugo 0.165.0 + Blowfish `4643c46`（submodule）+ 中文界面 + 站内搜索覆盖 + 代码复制按钮 + 示例文章 | ✅ 本地构建与搜索实测通过 |
 | 2026-09-23 | 第一篇文章发布；仓库发布到 GitHub；启用 Pages（Source = GitHub Actions） | ✅ 线上 200，全站页面与样式表验证通过 |
+| 2026-09-23 | 绑定自定义域名 `blog.wxgg.eu.cc`（Cloudflare 代理） | ⚠️ 见下方"改域名后必须重新构建" |
