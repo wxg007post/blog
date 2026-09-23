@@ -70,18 +70,23 @@ Get Pages site failed. Please verify that the repository has Pages enabled and c
 - `发布前检查.ps1` 必须存成 **UTF-8 with BOM** —— PowerShell 5.1 读无 BOM 的 UTF-8 中文脚本会乱码甚至解析失败；
 - `发布前检查.cmd` 必须用 **CRLF** 换行且**只含 ASCII** —— cmd 用 OEM 代码页解码，LF 换行会让它把"半个单词"当命令执行。
 
-### ⚠️ 改域名 / 改仓库名之后，**必须重新构建一次**
+### 域名与 baseURL 的关系（**方案 B + 部署后自检**，2026-09-23 定）
 
-绑定自定义域名后，如果**没有重新构建**，站点会出现"能打开但没样式、图标巨大、头像不显示"：
+本站**不把域名写死在代码里**：CI 构建时由 GitHub Pages 的配置决定站点地址
+（`hugo --baseURL "${{ steps.pages.outputs.base_url }}/"`），Pages 未配自定义域名时自动回退到 `https://<用户名>.github.io/<仓库名>`。
 
-- 原因：上一次构建时 `configure-pages` 给的是 `https://wxg007post.github.io/blog`，Hugo 把资源路径写成了根相对的 `/blog/css/...`；
-- 域名生效后站点挂在**根目录**，浏览器去请求 `https://blog.wxgg.eu.cc/blog/css/...` → **全部 404**；
-- 解决：**触发一次新的构建**（推送任意提交，或在 Actions 里 Re-run all jobs）。新构建会从 Pages 配置里读到自定义域名，资源路径变成 `/css/...`，canonical 也会变成域名。
+| 场景 | 要做什么 | 会不会漏 |
+|---|---|---|
+| 以后**换域名** | ① Cloudflare 改 DNS ② 仓库 `Settings → Pages` 填新域名 ③ 推送一次触发构建 | **不用改代码**；若忘了第 ③ 步，工作流的「部署后自检」会红掉并打印实际地址 |
+| 换仓库名 / 换用户名 | 同上（Pages 地址会自动跟着变） | 同上 |
+| 本地预览 | 用 `config/_default/hugo.toml` 的 `baseURL`（当前 `https://blog.wxgg.eu.cc/`），与线上无关 | — |
 
-**验证方法**（改域名后务必做一次）：
-1. 打开 `https://blog.wxgg.eu.cc/`，查看源代码；
-2. CSS/JS 的地址应是 `https://blog.wxgg.eu.cc/...`（**不带 `/blog/`**）；
-3. `<link rel="canonical">` 应指向 `https://blog.wxgg.eu.cc/`。
+**为什么会出现"能打开但没样式、图标巨大、头像不显示"？**（2026-09-23 实际踩到）
+上一次构建发生在自定义域名生效**之前**，Hugo 把资源路径写成了项目站点子路径 `/blog/css/...`；域名生效后站点挂在**根目录**，浏览器去请求 `https://blog.wxgg.eu.cc/blog/css/...` → 全部 404。**修法：重新构建一次**（新构建会读到域名）。
+
+**部署后自检**（工作流最后一步，自动执行）：实际请求线上首页与它引用的样式表，任一不是 200 就 `exit 1` —— 把"静默发出一个坏站点"变成"CI 立刻报红"，也顺便验证了上面的第 ③ 步有没有漏。
+
+**人工验证方法**（改域名后建议做一次）：打开站点查看源代码，确认 CSS/JS 地址与 `<link rel="canonical">` 都指向新域名、且**不带**旧的项目子路径。
 
 ### 部署后发现的 Cloudflare 观察
 
