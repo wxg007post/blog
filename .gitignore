@@ -21,11 +21,23 @@ secrets/
 id_rsa
 id_ed25519
 
+# ===== 我的私人工作文档（只放本地，不随网站发布）=====
+# 这些文件不参与 Hugo 构建，也不参与 Actions 发布，只是我自己的工作笔记/工具。
+# 本地文件保留原地（脚本靠 $PSScriptRoot 找仓库根，不能挪进子目录）。
+/博客建设方案.md
+/操作手册.md
+/标签清单.md
+/发布前检查.ps1
+/发布前检查.cmd
+
 # ===== 系统与编辑器 =====
 Thumbs.db
 .DS_Store
 **/.obsidian/workspace*.json
 **/.obsidian/cache
+**/.obsidian/app.json
+**/.obsidian/appearance.json
+**/.obsidian/core-plugins.json
 
 # ===== 依赖（将来若用到 npm 工具）=====
 node_modules/
