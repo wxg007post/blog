@@ -98,8 +98,12 @@ if (Test-Path $contentDir) {
     $rel = $m.FullName.Substring($root.Length + 1)
     $text = Get-Content -LiteralPath $m.FullName -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
     if (-not $text) { continue }
-    if ($text -match '!\[\[') { Add-Warn "$rel 出现 wiki 链接写法 ![[...]]，Hugo 不认 —— 请改成 ![](图片.webp)" }
-    foreach ($match in $imgRegex.Matches($text)) {
+    # 先剥掉「代码块」与「行内代码」再检查：
+    # 否则文章里教读者"不要这样写图片"的示例（如 ![[...]]）会被误报成真的坏图
+    $scanText = [regex]::Replace($text, '(?s)```.*?```', ' ')
+    $scanText = [regex]::Replace($scanText, '`[^`]*`', ' ')
+    if ($scanText -match '!\[\[') { Add-Warn "$rel 出现 wiki 链接写法 ![[...]]，Hugo 不认 —— 请改成 ![](图片.webp)" }
+    foreach ($match in $imgRegex.Matches($scanText)) {
       $p = $match.Groups['p'].Value.Trim()
       if ($p -match '^(https?:)?//' -or $p -match '^\{\{') { continue }
       if ($p -match '^[A-Za-z]:\\' -or $p -match '^file:') { Add-High "$rel 图片用了绝对路径 -> $p（请改成与 md 同目录的相对路径）"; continue }
