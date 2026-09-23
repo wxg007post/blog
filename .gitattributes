@@ -1,0 +1,26 @@
+# 换行符规则：仓库内统一存 LF，检出时按下面的规则转换。
+# 为什么需要这个文件：Windows 上的 .cmd 必须是 CRLF 才能被 cmd.exe 正确解析，
+# 否则会出现"半个单词被当成命令执行"的怪错误（我们踩过）。
+# 写死规则后，无论谁的电脑、无论 autocrlf 怎么设，检出结果都一致。
+
+* text=auto
+
+# Windows 批处理与 PowerShell 脚本：检出为 CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# 将来若加 shell 脚本，保持 LF
+*.sh  text eol=lf
+
+# 二进制资源不要做换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.avif binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
