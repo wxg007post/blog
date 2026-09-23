@@ -58,7 +58,12 @@ jobs:
           HUGO_ENVIRONMENT: production
           HUGO_ENV: production
         run: |
-          hugo --gc --minify --baseURL "${{ steps.pages.outputs.base_url }}/"
+          # 说明：这里【不】用 --baseURL 覆盖站点地址，以 config/_default/hugo.toml 的 baseURL 为准。
+          # 原因（2026-09-23 实际踩到）：绑定自定义域名后，Pages 自动地址可能仍是
+          # https://<用户名>.github.io/<仓库名>，那样 Hugo 会把资源路径写成 /blog/css/...，
+          # 而站点实际挂在域名根目录 → 资源全部 404，表现为"页面能打开但没样式、图标巨大、头像不显示"。
+          echo "站点 baseURL = $(grep -m1 '^baseURL' config/_default/hugo.toml)"
+          hugo --gc --minify
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
