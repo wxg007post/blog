@@ -93,32 +93,32 @@ Get Pages site failed. Please verify that the repository has Pages enabled and c
 - 站点响应头含 `server: cloudflare`、`cf-cache-status: DYNAMIC`（HTML 未被缓存，正常）；
 - Cloudflare 自动注入了 **Rocket Loader**（`/cdn-cgi/scripts/.../rocket-loader.min.js`）和 Web Analytics beacon。Rocket Loader 会延迟/改写页面 JS，**若发现搜索框或深色模式切换异常，先去 Cloudflare → Speed → Optimization 关掉 Rocket Loader**（这是常见冲突源）。
 
-### 部署后自检的两个细节（2026-09-23 补）
+### 部署后的验证方式（2026-09-23 定稿）
 
-1. **必须带重试**：部署完成后 CDN / GitHub Pages 需要几秒到几十秒才切到新内容。自检只查一次会抓到**上一版** HTML 并误报失败——首次上线时就这样红过一次（站点其实是好的）。现在最多重试 8 次、每次间隔 15 秒，只有连续失败才判红。
-2. **baseURL 要强制 https**：Pages 在未启用 "Enforce HTTPS" 时会把 `http://域名` 交给构建。本项目域名走 Cloudflare 代理，**GitHub 无法为该域名签发证书**，所以那个开关一直显示 *Unavailable for your site because your domain is not properly configured to support HTTPS*。不处理的话 Hugo 生成的 `sitemap.xml` / `index.xml` / `og:url` 全是 http（实测 sitemap 4 处、RSS 7 处）。工作流里已把地址统一替换成 https。
+1. **构建期断言（保留）**：`Assert asset paths match base URL` 步骤检查 `public/index.html` 引用的样式表路径，是否以当次 baseURL 的路径部分开头（域名 → `/css/`，项目站点 → `/blog/css/`），不符立即失败。**纯本地、不联网、100% 可靠**——这是目前 CI 里唯一的自动防线。
+2. **baseURL 强制 https（保留）**：Pages 在未启用 "Enforce HTTPS" 时会把 `http://域名` 交给构建。本项目域名走 Cloudflare 代理，**GitHub 无法为该域名签发证书**，所以那个开关一直显示 *Unavailable for your site because your domain is not properly configured to support HTTPS*。不处理的话 Hugo 生成的 `sitemap.xml` / `index.xml` / `og:url` 全是 http（实测 sitemap 4 处、RSS 7 处）。工作流已把地址统一替换成 https。
+3. **不在 CI 里做线上自检（已删除）**：原因见下一节——GitHub 的运行器访问本站会被 Cloudflare 拦（403）。
+4. **线上验证靠人工**：发布后用浏览器打开 `https://blog.wxgg.eu.cc/` 看一眼（重点：样式正常、头像与图标显示）。这类问题人眼一眼就能发现。
 
 > 附带结论：本项目的 HTTPS 由 **Cloudflare 的通用证书**提供（实测签发者 Google Trust Services，`CN=wxgg.eu.cc`，SAN 含 `*.wxgg.eu.cc`，有效期至 2026-10-28），与 GitHub 的 `Enforce HTTPS` 无关——访客侧一切正常。
 >
 > 若以后确实想要 GitHub 也持有证书并开启 `Enforce HTTPS`：需要按方案 4.1 的顺序补做——把 Cloudflare 那条记录**临时切成"仅 DNS"（灰云）**，等 GitHub 签发证书后勾选 Enforce HTTPS，再切回橙云。期间站点由 GitHub 直连（国内可能变慢），属于可选操作。
 
-### 自检连续误报的调查记录（2026-09-23）
+### 为什么最终删掉了"部署后自检"（完整证据链，2026-09-23）
 
-站点本身是好的（首页/样式表/图标全部 200），但"部署后自检"**连续两次**把运行判为失败。已排除的假设：
+**一句话结论**：GitHub Actions 的运行器访问本站会被 **Cloudflare 返回 403**（实测拿到 5295 字节的拦截页），因此 CI **看不到**线上真实内容 → 线上自检在 CI 里不可能有效，故删除。
 
-| 假设 | 验证方式 | 结论 |
+| 步骤 | 证据 | 结论 |
 |---|---|---|
-| `deploy-pages` 的输出名写错，自检拿不到地址 | 拉取该 action v4/v5 的 `action.yml` | ❌ 输出名 `page_url` 正确 |
-| Cloudflare 拦截 `curl` 的默认 User-Agent（403） | 用 `curl/8.5`、`curl/7.68`、浏览器 UA、空 UA 分别请求首页与样式表 | ❌ 四种 UA 全部 200 |
+| ① 为什么连续三次红？ | deploy 作业耗时跳变：#4 12 秒 / #5 1 分 4 秒 / #6 9 秒 / #7 9 秒；且 #7 的注解里**没有**我预期的诊断文字 | 脚本**半路被终止**：GitHub 的 `run:` 默认以 `bash -e` 执行，我又写了 `set -o pipefail`，未兜底的 `grep … \| head …` 与 `curl` 一旦返回非零就立即退出 → 重试与诊断代码都没机会执行 |
+| ② 修好脚本后为何是"警告"而非"通过"？ | 注解原文：`首页返回 403，页面 5295 字节；目标 http://blog.wxgg.eu.cc/ ；共尝试 6 次` | **Cloudflare 拦截了 GitHub 运行器的 IP**（Azure 云主机段）。已排除的假设：UA 问题（四种 UA 从本机访问均 200）、`page_url` 输出名问题（v4/v5 均正确） |
+| ③ 那还留不留？ | 403 会让自检永远停在"环境无法验证" | 无法验证 = 没有保护价值，只会每轮留一条警告 → **删除**；构建侧改由不联网的"构建期断言"护航 |
 
-**当时无法确定真因**：GitHub 的步骤级日志需要登录才能看，而 API 从本机出口 IP 被限流（403）。
+**三条教训（写给未来的自己）**：
 
-**应对思路（重要经验）：不猜，而是让失败原因出现在"能被读到的地方"**：
-
-1. 失败时用 `::error::` 输出具体数值（首页 HTTP 码、样式表路径、实际请求的 URL、`cf-cache-status`、页面开头 160 字符）——这些注解会显示在**公开的运行页面**上，无需登录即可查看；
-2. 候选地址从 1 个增加到 2 个（`needs.build.outputs.site_url` 与 `steps.deployment.outputs.page_url`），任一通过即算成功，避免单点依赖；
-3. 抓页面时带 `?smoke=N` 防缓存参数，避免拿到 CDN 上的旧 HTML；
-4. 另加一条**构建期断言**（纯本地、不联网）：首页样式表路径必须以当次 baseURL 的路径部分开头（域名 → `/css/`，项目站点 → `/blog/css/`），不符立即失败。
+1. CI 脚本里，**"自己的错误处理"必须先于"环境异常处理"**——否则后者永远不会生效；
+2. **"预期会出现的诊断没出现"本身就是证据**：说明脚本比你以为的更早就死了；
+3. 本环境限制：**agent 读不到 GitHub 的运行日志与 API**（注解正文是前端渲染，HTML 里没有；API 匿名限流在这条共享出口 IP 上长期为 0）→ 需要诊断时，请把运行页面上注解的文字**复制给 agent**。
 
 ### 自检为什么"连续三次误报"：完整证据链（2026-09-23）
 
