@@ -27,6 +27,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 把 Pages 给出的站点地址传给 deploy 作业，"部署后自检"要用
+    outputs:
+      site_url: ${{ steps.pages.outputs.base_url }}
     steps:
       - name: Install Hugo extended CLI
         run: |
@@ -67,6 +70,28 @@ jobs:
           echo "构建用 baseURL = $BASE/"
           hugo --gc --minify --baseURL "$BASE/"
 
+      # 构建期断言（纯本地、不依赖网络）：
+      # 首页引用的样式表路径，必须以「当次 baseURL 的路径部分」开头。
+      #   baseURL = https://blog.wxgg.eu.cc      → 期望 /css/…
+      #   baseURL = https://user.github.io/blog  → 期望 /blog/css/…
+      # 不一致说明"构建用的地址"和"站点实际挂载位置"对不上——就是历史上那次
+      # "页面能打开但完全没样式"的成因。
+      - name: Assert asset paths match base URL
+        run: |
+          set -uo pipefail
+          BASE="${{ steps.pages.outputs.base_url }}"
+          BASE="${BASE/http:\/\//https:\/\/}"
+          EXPECT_PATH=$(echo "$BASE" | sed -E 's#^https?://[^/]+##')
+          EXPECT_PATH="${EXPECT_PATH%/}"
+          CSS_PATH=$(grep -oE 'href=[^ >]+\.css' public/index.html | head -1 | sed 's/^href=//' | tr -d '"')
+          echo "baseURL = $BASE"
+          echo "期望路径前缀 = ${EXPECT_PATH}/"
+          echo "实际样式表   = ${CSS_PATH:-（没找到）}"
+          case "$CSS_PATH" in
+            "${EXPECT_PATH}/"*) echo "✅ 资源路径与 baseURL 一致" ;;
+            *) echo "::error::资源路径与 baseURL 不一致：期望以 ${EXPECT_PATH}/ 开头，实际为 ${CSS_PATH:-空}"; exit 1 ;;
+          esac
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
@@ -85,38 +110,49 @@ jobs:
 
       # 部署后自检（方案 B 的保险）：
       # 实际请求线上首页与它引用的样式表，任一不是 200 就把这次运行判为失败。
-      # 必须带重试：部署完成后 CDN/Pages 需要几秒到几十秒才切到新内容，
-      # 只查一次会抓到上一版 HTML 而误报失败（2026-09-23 首次上线时就这样红过一次）。
+      #   - 必须带重试：部署完成后 CDN/Pages 需要几秒到几十秒才切到新内容；
+      #   - 必须可诊断：失败时用 ::error:: 输出具体数值（会在公开的运行页面上显示），
+      #     否则只能看到"步骤失败"，不知道卡在哪一步。
       - name: Smoke test deployed site
         run: |
           set -uo pipefail
-          BASE="${{ steps.deployment.outputs.page_url }}"
-          echo "自检目标 = $BASE"
+          SITE="${{ needs.build.outputs.site_url }}"
+          SITE="${SITE/http:\/\//https:\/\/}"
+          PAGE_URL="${{ steps.deployment.outputs.page_url }}"
+          echo "配置站点地址 site_url = ${SITE:-（空）}"
+          echo "本次部署地址 page_url = ${PAGE_URL:-（空）}"
           OK=0
-          for i in $(seq 1 8); do
-            echo "--- 第 $i 次检查 ---"
-            code=$(curl -s -o index.html -w '%{http_code}' -L "$BASE")
-            CSS_PATH=$(grep -oE 'href=[^ >]+\.css' index.html | head -1 | sed 's/^href=//' | tr -d '"')
-            if [ "$code" = "200" ] && [ -n "$CSS_PATH" ]; then
-              case "$CSS_PATH" in
-                http*) CSS_URL="$CSS_PATH" ;;
-                *) ORIGIN=$(echo "$BASE" | sed -E 's#(https?://[^/]+).*#\1#'); CSS_URL="$ORIGIN$CSS_PATH" ;;
-              esac
-              csscode=$(curl -s -o /dev/null -w '%{http_code}' -L "$CSS_URL")
-              echo "首页 HTTP=$code ；样式表 $CSS_PATH -> HTTP=$csscode"
-              if [ "$csscode" = "200" ]; then
-                OK=1
-                echo "✅ 自检通过：首页与样式表都正常"
-                break
+          LAST_CODE=""
+          LAST_CSS=""
+          for BASE in "$SITE" "$PAGE_URL"; do
+            [ -z "$BASE" ] && continue
+            echo "===== 检查目标：$BASE ====="
+            for i in $(seq 1 6); do
+              code=$(curl -s -o page.html -w '%{http_code}' -L "$BASE/?smoke=$i" || true)
+              LAST_CODE="$code"
+              CSS_PATH=$(grep -oE 'href=[^ >]+\.css' page.html | head -1 | sed 's/^href=//' | tr -d '"')
+              LAST_CSS="$CSS_PATH"
+              cachehdr=$(curl -s -o /dev/null -D - -L "$BASE/?smoke=$i" 2>/dev/null | grep -iE '^(cf-cache-status|age|x-cache):' | tr -d '\r' | paste -sd' ' - || true)
+              echo "第 $i 次：首页 HTTP=$code ；样式表=${CSS_PATH:-（未找到）} ；缓存头=${cachehdr:-无}"
+              if [ "$code" = "200" ] && [ -n "$CSS_PATH" ]; then
+                case "$CSS_PATH" in
+                  http*) CSS_URL="$CSS_PATH" ;;
+                  *) ORIGIN=$(echo "$BASE" | sed -E 's#(https?://[^/]+).*#\1#'); CSS_URL="$ORIGIN$CSS_PATH" ;;
+                esac
+                csscode=$(curl -s -o /dev/null -w '%{http_code}' -L "$CSS_URL" || true)
+                echo "       样式表 URL=$CSS_URL -> HTTP=$csscode"
+                if [ "$csscode" = "200" ]; then
+                  OK=1
+                  echo "✅ 自检通过（目标 $BASE）"
+                  break 2
+                fi
               fi
-            else
-              echo "首页 HTTP=$code ；样式表引用 = ${CSS_PATH:-（没找到）}"
-            fi
-            echo "内容可能尚未同步，等 15 秒后重试…"
-            sleep 15
+              echo "       内容可能尚未同步，等 15 秒后重试…"
+              sleep 15
+            done
           done
           if [ "$OK" != "1" ]; then
-            echo "❌ 连续 8 次自检未通过"
-            echo "   常见原因：站点实际地址与构建时用的 baseURL 不一致（表现：页面能打开但没样式、图标巨大、头像不显示）"
+            SNIPPET=$(tr -d '\n' < page.html 2>/dev/null | head -c 160 || true)
+            echo "::error::部署后自检未通过（两个候选地址各重试 6 次）。site_url=${SITE:-空} page_url=${PAGE_URL:-空} 最后首页HTTP=${LAST_CODE:-无} 最后样式表路径=${LAST_CSS:-无} 页面开头=${SNIPPET:-空}"
             exit 1
           fi

@@ -102,6 +102,24 @@ Get Pages site failed. Please verify that the repository has Pages enabled and c
 >
 > 若以后确实想要 GitHub 也持有证书并开启 `Enforce HTTPS`：需要按方案 4.1 的顺序补做——把 Cloudflare 那条记录**临时切成"仅 DNS"（灰云）**，等 GitHub 签发证书后勾选 Enforce HTTPS，再切回橙云。期间站点由 GitHub 直连（国内可能变慢），属于可选操作。
 
+### 自检连续误报的调查记录（2026-09-23）
+
+站点本身是好的（首页/样式表/图标全部 200），但"部署后自检"**连续两次**把运行判为失败。已排除的假设：
+
+| 假设 | 验证方式 | 结论 |
+|---|---|---|
+| `deploy-pages` 的输出名写错，自检拿不到地址 | 拉取该 action v4/v5 的 `action.yml` | ❌ 输出名 `page_url` 正确 |
+| Cloudflare 拦截 `curl` 的默认 User-Agent（403） | 用 `curl/8.5`、`curl/7.68`、浏览器 UA、空 UA 分别请求首页与样式表 | ❌ 四种 UA 全部 200 |
+
+**当时无法确定真因**：GitHub 的步骤级日志需要登录才能看，而 API 从本机出口 IP 被限流（403）。
+
+**应对思路（重要经验）：不猜，而是让失败原因出现在"能被读到的地方"**：
+
+1. 失败时用 `::error::` 输出具体数值（首页 HTTP 码、样式表路径、实际请求的 URL、`cf-cache-status`、页面开头 160 字符）——这些注解会显示在**公开的运行页面**上，无需登录即可查看；
+2. 候选地址从 1 个增加到 2 个（`needs.build.outputs.site_url` 与 `steps.deployment.outputs.page_url`），任一通过即算成功，避免单点依赖；
+3. 抓页面时带 `?smoke=N` 防缓存参数，避免拿到 CDN 上的旧 HTML；
+4. 另加一条**构建期断言**（纯本地、不联网）：首页样式表路径必须以当次 baseURL 的路径部分开头（域名 → `/css/`，项目站点 → `/blog/css/`），不符立即失败。
+
 ## ⚠️ 域名到期日（待你填写）
 
 `wxgg.eu.cc` 是 GNAME 的**免费**域名，续期**必须手动**：到期前 90 天内到 GNAME 活动页领券提交（在域名列表操作或开自动续费**都不生效**）。
