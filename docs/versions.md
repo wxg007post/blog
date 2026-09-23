@@ -93,6 +93,15 @@ Get Pages site failed. Please verify that the repository has Pages enabled and c
 - 站点响应头含 `server: cloudflare`、`cf-cache-status: DYNAMIC`（HTML 未被缓存，正常）；
 - Cloudflare 自动注入了 **Rocket Loader**（`/cdn-cgi/scripts/.../rocket-loader.min.js`）和 Web Analytics beacon。Rocket Loader 会延迟/改写页面 JS，**若发现搜索框或深色模式切换异常，先去 Cloudflare → Speed → Optimization 关掉 Rocket Loader**（这是常见冲突源）。
 
+### 部署后自检的两个细节（2026-09-23 补）
+
+1. **必须带重试**：部署完成后 CDN / GitHub Pages 需要几秒到几十秒才切到新内容。自检只查一次会抓到**上一版** HTML 并误报失败——首次上线时就这样红过一次（站点其实是好的）。现在最多重试 8 次、每次间隔 15 秒，只有连续失败才判红。
+2. **baseURL 要强制 https**：Pages 在未启用 "Enforce HTTPS" 时会把 `http://域名` 交给构建。本项目域名走 Cloudflare 代理，**GitHub 无法为该域名签发证书**，所以那个开关一直显示 *Unavailable for your site because your domain is not properly configured to support HTTPS*。不处理的话 Hugo 生成的 `sitemap.xml` / `index.xml` / `og:url` 全是 http（实测 sitemap 4 处、RSS 7 处）。工作流里已把地址统一替换成 https。
+
+> 附带结论：本项目的 HTTPS 由 **Cloudflare 的通用证书**提供（实测签发者 Google Trust Services，`CN=wxgg.eu.cc`，SAN 含 `*.wxgg.eu.cc`，有效期至 2026-10-28），与 GitHub 的 `Enforce HTTPS` 无关——访客侧一切正常。
+>
+> 若以后确实想要 GitHub 也持有证书并开启 `Enforce HTTPS`：需要按方案 4.1 的顺序补做——把 Cloudflare 那条记录**临时切成"仅 DNS"（灰云）**，等 GitHub 签发证书后勾选 Enforce HTTPS，再切回橙云。期间站点由 GitHub 直连（国内可能变慢），属于可选操作。
+
 ## ⚠️ 域名到期日（待你填写）
 
 `wxgg.eu.cc` 是 GNAME 的**免费**域名，续期**必须手动**：到期前 90 天内到 GNAME 活动页领券提交（在域名列表操作或开自动续费**都不生效**）。

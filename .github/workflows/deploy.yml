@@ -58,13 +58,14 @@ jobs:
           HUGO_ENVIRONMENT: production
           HUGO_ENV: production
         run: |
-          # 站点地址由 Pages 配置决定（方案 B）：
-          #   - 自定义域名生效时，configure-pages 给出域名；
-          #   - 未配置自定义域名时给出 https://<用户名>.github.io/<仓库名>。
-          # 好处：以后换域名只需改 Pages 设置，不用改代码。
-          # 保险：接下来"部署后自检"会实际请求线上首页与样式表，地址不对就 fail。
-          echo "Pages base URL = ${{ steps.pages.outputs.base_url }}"
-          hugo --gc --minify --baseURL "${{ steps.pages.outputs.base_url }}/"
+          # 站点地址由 Pages 配置决定（方案 B），好处是换域名不用改代码。
+          BASE="${{ steps.pages.outputs.base_url }}"
+          # 强制 https：Pages 在未启用 "Enforce HTTPS" 时会给出 http:// 地址
+          # （本项目域名走 Cloudflare 代理，GitHub 签不了证书，所以那个开关一直不可用），
+          # 不处理的话 sitemap / RSS / og:url 会全是 http（2026-09-23 实测到）。
+          BASE="${BASE/http:\/\//https:\/\/}"
+          echo "构建用 baseURL = $BASE/"
+          hugo --gc --minify --baseURL "$BASE/"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
@@ -83,35 +84,39 @@ jobs:
         uses: actions/deploy-pages@v5
 
       # 部署后自检（方案 B 的保险）：
-      # 实际请求线上首页与它引用的样式表，任一不是 200 就把这次运行判为失败，
-      # 避免"域名/地址不一致导致没样式"这种情况被静默发布出去。
+      # 实际请求线上首页与它引用的样式表，任一不是 200 就把这次运行判为失败。
+      # 必须带重试：部署完成后 CDN/Pages 需要几秒到几十秒才切到新内容，
+      # 只查一次会抓到上一版 HTML 而误报失败（2026-09-23 首次上线时就这样红过一次）。
       - name: Smoke test deployed site
         run: |
           set -uo pipefail
           BASE="${{ steps.deployment.outputs.page_url }}"
           echo "自检目标 = $BASE"
-          code=$(curl -s -o index.html -w '%{http_code}' -L "$BASE")
-          echo "首页 HTTP = $code"
-          if [ "$code" != "200" ]; then
-            echo "❌ 首页返回 $code，部署异常"
+          OK=0
+          for i in $(seq 1 8); do
+            echo "--- 第 $i 次检查 ---"
+            code=$(curl -s -o index.html -w '%{http_code}' -L "$BASE")
+            CSS_PATH=$(grep -oE 'href=[^ >]+\.css' index.html | head -1 | sed 's/^href=//' | tr -d '"')
+            if [ "$code" = "200" ] && [ -n "$CSS_PATH" ]; then
+              case "$CSS_PATH" in
+                http*) CSS_URL="$CSS_PATH" ;;
+                *) ORIGIN=$(echo "$BASE" | sed -E 's#(https?://[^/]+).*#\1#'); CSS_URL="$ORIGIN$CSS_PATH" ;;
+              esac
+              csscode=$(curl -s -o /dev/null -w '%{http_code}' -L "$CSS_URL")
+              echo "首页 HTTP=$code ；样式表 $CSS_PATH -> HTTP=$csscode"
+              if [ "$csscode" = "200" ]; then
+                OK=1
+                echo "✅ 自检通过：首页与样式表都正常"
+                break
+              fi
+            else
+              echo "首页 HTTP=$code ；样式表引用 = ${CSS_PATH:-（没找到）}"
+            fi
+            echo "内容可能尚未同步，等 15 秒后重试…"
+            sleep 15
+          done
+          if [ "$OK" != "1" ]; then
+            echo "❌ 连续 8 次自检未通过"
+            echo "   常见原因：站点实际地址与构建时用的 baseURL 不一致（表现：页面能打开但没样式、图标巨大、头像不显示）"
             exit 1
           fi
-          CSS_PATH=$(grep -oE 'href=[^ >]+\.css' index.html | head -1 | sed 's/^href=//' | tr -d '"')
-          if [ -z "$CSS_PATH" ]; then
-            echo "❌ 首页里找不到样式表引用"
-            exit 1
-          fi
-          echo "样式表引用 = $CSS_PATH"
-          case "$CSS_PATH" in
-            http*) CSS_URL="$CSS_PATH" ;;
-            *) ORIGIN=$(echo "$BASE" | sed -E 's#(https?://[^/]+).*#\1#'); CSS_URL="$ORIGIN$CSS_PATH" ;;
-          esac
-          echo "样式表 URL = $CSS_URL"
-          csscode=$(curl -s -o /dev/null -w '%{http_code}' -L "$CSS_URL")
-          echo "样式表 HTTP = $csscode"
-          if [ "$csscode" != "200" ]; then
-            echo "❌ 样式表加载失败：站点实际地址与构建时用的地址不一致"
-            echo "   （典型表现：页面能打开但没样式、图标巨大、头像不显示）"
-            exit 1
-          fi
-          echo "✅ 自检通过：首页与样式表都正常"
