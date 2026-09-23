@@ -146,3 +146,6 @@ Pages 未配自定义域名时会自动回退到 `https://<用户名>.github.io/
 | 2026-09-23 | 第一篇文章发布；仓库发布到 GitHub；启用 Pages（Source = GitHub Actions） | ✅ 线上 200，全站页面与样式表验证通过 |
 | 2026-09-23 | 绑定自定义域名 `blog.wxgg.eu.cc`（Cloudflare 代理） | ⚠️ 见《域名与 baseURL 的关系》一节 |
 | 2026-09-23 | 私人工作文档（建设方案/操作手册/标签清单/发布前检查脚本）取消 git 跟踪，只放本地；`content/.obsidian/` 的本机配置同样取消跟踪 | ✅ 本地文件原地保留，脚本照常可用；仓库已跟踪文件 39 → 31 |
+| 2026-09-23 | CI 运行环境由 `ubuntu-latest` 固定为 `ubuntu-24.04`（`deploy.yml` 的两个 job 都改） | ✅ 见下方「要留意的日期」 |
+
+> ⏳ **要留意的日期：2026-10-19** —— GitHub 会把 `ubuntu-latest` 标签迁到 **Ubuntu 26**（来源：CI 运行注解原文，实测可用 API 读取，见上面第 3 条教训）。本站已固定 `ubuntu-24.04`，**届时不受影响、无需任何操作**；若以后想主动跟进新系统，只改 `.github/workflows/deploy.yml` 里的两处 `runs-on` 即可。
