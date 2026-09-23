@@ -2,6 +2,7 @@
 public/
 resources/_gen/
 .hugo_build.lock
+.hugo_cache/
 
 # ===== 我的核查 / 临时目录 =====
 .research/
