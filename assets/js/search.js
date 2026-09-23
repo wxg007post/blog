@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------
  * PROJECT OVERRIDE of theme file: assets/js/search.js
  * Upstream: themes/blowfish/assets/js/search.js
- * Why (see docs/plan section 3.6):
+ * Why (see the local design doc, section 3.6 — that doc is not published in this repo):
  *   - useTokenSearch: token-based matching for multi-word / CJK queries
  *   - tags + categories added to Fuse keys (now present in index.json)
  * Keep the diff minimal: theme upgrades must be diffed against this file.
