@@ -4,7 +4,7 @@ date: 2026-09-23T08:48:17+08:00
 lastmod: 2026-09-23
 draft: false
 slug: "hugo-blowfish-github-pages-blog"
-description: "从零搭起这个博客的完整过程：为什么选 Hugo + Blowfish、怎么做到推送即上线，以及我实际踩到的 8 个坑（版本锁定、中文搜索、头像目录、白板问题……）。"
+description: "从零搭起这个博客的完整过程：为什么选 Hugo + Blowfish、怎么做到推送即上线，以及踩到的一堆坑——搭建期的 8 个，加上绑定自定义域名后才暴露的 3 个（基地址没跟上域名、Pages 未启用、绝对地址全是 http）。"
 categories: ["折腾记录"]
 tags: ["Hugo", "GitHub Pages"]
 showHero: true
@@ -113,7 +113,7 @@ enableCodeCopy = true           # 代码块复制按钮
 
 最后别忘了在仓库 **Settings → Pages → Source** 里选 **GitHub Actions**——不选的话工作流会在部署那步报 `HttpError: Not Found`。
 
-## 我实际踩到的 8 个坑
+## 搭建期间踩到的 8 个坑
 
 | # | 现象 | 原因 | 解决 |
 |---|---|---|---|
@@ -132,6 +132,81 @@ enableCodeCopy = true           # 代码块复制按钮
 
 **坑 5 的教训**：搜索是静态博客最容易"看起来有、其实没有"的功能。判断它有没有用，不能看配置文件里写没写 `enableSearch = true`，而要**实际搜几个中文词**：连续词、带空格的多词、标签名、分类名。我是搜"标签名"时发现搜不到的——因为索引里根本没有这个字段。
 
+## 上线之后才暴露的 3 个问题
+
+"本地能跑"和"挂到自己的域名上一切正常"是两件事。下面这三个，都是**绑定自定义域名之后**才冒出来的。
+
+### 问题 1：域名绑好了，页面却"没样式"（基地址没跟上域名）
+
+**现象**：`https://blog.wxgg.eu.cc/` 能打开、文字都在，但**完全没有样式**——SVG 图标撑成巨大的一坨、头像不显示、布局全乱。
+
+**排查**：查看页面源代码，两个线索立刻暴露问题：
+
+- `<link rel="canonical">` 指向的是 `https://<用户名>.github.io/blog/`，而不是我的域名；
+- 所有静态资源都是**根相对路径** `/blog/css/...`——站点现在挂在**域名根目录**，浏览器于是去请求 `https://blog.wxgg.eu.cc/blog/css/...`，**全部 404**。
+
+**根因**：Hugo 生成资源路径用的是 `baseURL`，而我在工作流里让它取 GitHub Pages 的自动地址：
+
+```yaml
+hugo --minify --baseURL "${{ steps.pages.outputs.base_url }}/"
+```
+
+**这份 HTML 是在自定义域名生效之前构建的**。那时 Pages 给出的地址还是 `https://<用户名>.github.io/blog`，Hugo 就把 `/blog/` 写进了每一个资源路径；域名生效后站点换到根目录，路径全部对不上。
+
+**修法**（两条路，我最后选了后者）：
+
+| 做法 | 换域名时要做什么 | 优缺点 |
+|---|---|---|
+| 把域名写死在 `hugo.toml` 的 `baseURL` | 改 1 行配置 + 重新构建 | 确定、直观，但容易忘 |
+| 继续用 Pages 的地址，但**构建前统一规范成 https**，并加部署后自检 | **只改 Pages 设置**，代码不用动 | 自适应；万一漏了也会被自检拦住 |
+
+**最关键的一句**：不管走哪条路，**绑域名/换域名之后都必须重新构建一次**。因为 canonical、sitemap、RSS 这些绝对地址本来就是跟着域名走的，不重建就不会更新——我这次就是"域名先生效、构建是上一次的产物"，才出现"能打开但没样式"。
+
+### 问题 2：Pages 没启用，工作流直接报 HttpError
+
+第一次运行 Actions 就红了，报错原文：
+
+```
+Setup Pages
+HttpError: Not Found - https://docs.github.com/rest/pages/pages#get-a-apiname-pages-site
+Get Pages site failed. Please verify that the repository has Pages enabled and configured to build using GitHub Actions
+```
+
+**根因**：仓库还没启用 Pages。Actions 想替你部署，但 Pages 功能没开，它去查 Pages 站点时拿到 404。
+
+**修法**：仓库 `Settings → Pages → Build and deployment → Source` 选 **GitHub Actions**。报错其实写得很清楚，但如果没注意到那个 "Source" 下拉框，很容易误以为是自己工作流写错了。
+
+### 问题 3：站点的绝对地址全是 http
+
+修好前两个问题后，我去检查 `sitemap.xml` 和 RSS，发现里面的链接**全是 `http://`**（sitemap 4 处、RSS 7 处），`og:url` 也是 http。
+
+**根因**：Pages 在**没有启用 "Enforce HTTPS"** 时，会把 `http://域名` 交给构建，Hugo 就照着生成了所有绝对地址。
+
+有意思的是，那个开关我**想勾也勾不上**，GitHub 提示：
+
+> Unavailable for your site because your domain is not properly configured to support HTTPS
+
+因为域名在 Cloudflare 上开着**代理（橙色云）**，GitHub 无法为它签发自己的证书，所以这个开关一直不可用。**但这不影响访客**：HTTPS 由 Cloudflare 的证书提供（实测签发者是 Google Trust Services，覆盖 `*.wxgg.eu.cc`，有效期到 2026-10-28）。
+
+**修法**：构建前把拿到的地址统一替换成 https：
+
+```bash
+BASE="${BASE/http:\/\//https:\/\/}"
+hugo --minify --baseURL "$BASE/"
+```
+
+改完 sitemap / RSS / og:url 全部变成 https。（文件里剩下的 `http://www.sitemaps.org/...` 是 XML 命名空间，属于正常现象。）
+
+## 我给自己加的两道保险
+
+这些坑有个共同点：**页面"看起来是好的"**，靠人眼很容易漏。所以我加了两道自动检查。
+
+**① 部署后自检**：构建部署完成后，自动请求线上首页和它引用的样式表，**任一不是 200 就把这次运行判为失败**。这样"地址不一致导致没样式"会变成 CI 上的红叉，而不是等我偶然发现。
+
+这里有个真实的教训：**自检必须带重试**。我第一版只检查一次，结果部署刚结束、CDN 还没切到新内容，它抓到的是**上一版** HTML，于是误报失败——站点其实已经好了。
+
+**② 发布前检查**：推送前跑一个脚本，扫内容里有没有真实密钥或内网 IP、有没有引用不存在的图片（坏图）、有没有超过 500KB 的大图。它分两档：`.md` 文档里出现 `sk-`、`AKIA` 这类**格式说明**只算"提示"（否则每篇教程都会报警），而配置文件里出现同样特征就直接算"高危"。
+
 ## 顺手的几个小设置
 
 - **文章模板**：把 front matter 固化成模板，新建文章时不用手填；
@@ -143,7 +218,16 @@ enableCodeCopy = true           # 代码块复制按钮
 
 这套方案真正的好处不是"免费"，而是**整条链路都是纯文本 + 可迁移的**：文章是 Markdown，仓库是 Git，构建靠云端。哪怕以后想换框架或换托管，`content/` 目录里的东西一个字都不用改。
 
-写这篇的时候，博客刚上线。接下来就是慢慢往里填内容了——毕竟搭博客只是手段，**持续记录才是目的**。
+写这篇的时候，博客刚上线。上线之后我又陆续发现并修掉了几个问题（见上面那节），也算印证了一件事：**静态博客的坑大多不在"搭"，而在"域名、协议、缓存"这些边界上**。
+
+接下来就是慢慢往里填内容了——毕竟搭博客只是手段，**持续记录才是目的**。
+
+## 更新记录
+
+| 日期 | 变更 |
+|---|---|
+| 2026-09-23 | 初稿发布 |
+| 2026-09-23 | 补充「上线之后才暴露的 3 个问题」与「两道保险」——绑定自定义域名后踩到的 |
 
 ---
 
