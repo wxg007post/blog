@@ -17,9 +17,6 @@ heroStyle: big
 showTableOfContents: true
 showTaxonomies: true
 ---
-
-## Tailscale 在 OpenClash 代理环境下自动打洞成功方案
-
 ## 一、概述
 
 在软路由上同时运行 OpenClash 和 Tailscale，会遇到一个问题：**Tailscale 无法与官方DERP直连，导致打洞失败，进而远端设备无法与软路由直连**，软路由上执行tailscale netcheck检查：IPV4 (no addr found)、UDP false。
@@ -71,12 +68,12 @@ Report:
 **OpenClash 日志** —— 这是破案的关键：
 
 ```
-[信息] [UDP] 192.168.16.253:40856 --> 172.237.61.190:3478  match 使用 机场节点
-[信息] [TCP] 192.168.16.253:33274 --> 45.159.98.196:80    match 使用 机场节点
-[信息] [TCP] 192.168.16.253:37364 --> 162.248.221.215:80  match 使用 机场节点
+[信息] [UDP] 192.168.x.x:40856 --> 172.237.61.190:3478  match 使用 机场节点
+[信息] [TCP] 192.168.x.x:33274 --> 45.159.98.196:80    match 使用 机场节点
+[信息] [TCP] 192.168.x.x:37364 --> 162.248.221.215:80  match 使用 机场节点
 ```
 
-源地址 `192.168.16.253` 是**软路由本机**，目的端口 `3478`（STUN）与 `80`（DERP 探测）正是 Tailscale 的探测流量。日志中的目的 IP 逐一比对官方 DERP 列表后**全部命中**：`172.237.61.190`（sao/derp11g，兼作 STUN）、`162.248.221.199/215/248`（tor/21b~21d）、`45.159.98.196/145`（waw/22b、22d）。
+源地址 `192.168.x.x` 是**软路由本机**，目的端口 `3478`（STUN）与 `80`（DERP 探测）正是 Tailscale 的探测流量。日志中的目的 IP 逐一比对官方 DERP 列表后**全部命中**：`172.237.61.190`（sao/derp11g，兼作 STUN）、`162.248.221.199/215/248`（tor/21b~21d）、`45.159.98.196/145`（waw/22b、22d）。
 
 快速确证方法：停掉 OpenClash 后重跑 `tailscale netcheck`，若 `IPv4` 立刻正常即可确认。
 
@@ -209,7 +206,7 @@ cmp -s "$TMP_OLD" "$TMP_BODY" && { log "列表无变化，不写文件、不重�
 
 ## 八、部署实战
 
-以下在 **Windows 主机**上执行，SSH 连接软路由（`192.168.16.253`）。
+以下在 **Windows 主机**上执行，SSH 连接软路由（`192.168.x.x`）。
 
 ### 8.1 生成脚本
 
@@ -220,7 +217,7 @@ cmp -s "$TMP_OLD" "$TMP_BODY" && { log "列表无变化，不写文件、不重�
 Windows主机向 OpenWrt 传文件：使用 **cmd 的原生文件重定向**，文件句柄直接交给 ssh，字节级透传：
 
 ```powershell
-cmd /c 'ssh root@192.168.16.253 "cat > /usr/bin/tailscale-derp-update.sh" < "C:\path\to\tailscale-derp-update.sh"'
+cmd /c 'ssh root@192.168.x.x "cat > /usr/bin/tailscale-derp-update.sh" < "C:\path\to\tailscale-derp-update.sh"'
 ```
 
 ### 8.3 校验文件一致性
@@ -228,7 +225,7 @@ cmd /c 'ssh root@192.168.16.253 "cat > /usr/bin/tailscale-derp-update.sh" < "C:\
 这一步不能省，务必确认文件完好：
 
 ```powershell
-ssh root@192.168.16.253 "chmod +x /usr/bin/tailscale-derp-update.sh && md5sum /usr/bin/tailscale-derp-update.sh && wc -c /usr/bin/tailscale-derp-update.sh && sh -n /usr/bin/tailscale-derp-update.sh && echo TRANSFER_OK"
+ssh root@192.168.x.x "chmod +x /usr/bin/tailscale-derp-update.sh && md5sum /usr/bin/tailscale-derp-update.sh && wc -c /usr/bin/tailscale-derp-update.sh && sh -n /usr/bin/tailscale-derp-update.sh && echo TRANSFER_OK"
 ```
 
 成功时输出 `TRANSFER_OK`，且应为：
@@ -245,7 +242,7 @@ md5 对不上说明文件在传输中被损坏，重做 8.2或者采用其他方
 dry-run 只抓取解析，不写任何文件：
 
 ```powershell
-ssh root@192.168.16.253 "/usr/bin/tailscale-derp-update.sh -n"
+ssh root@192.168.x.x "/usr/bin/tailscale-derp-update.sh -n"
 ```
 
 预期输出：
@@ -260,7 +257,7 @@ ssh root@192.168.16.253 "/usr/bin/tailscale-derp-update.sh -n"
 ### 8.5 正式运行
 
 ```powershell
-ssh root@192.168.16.253 "/usr/bin/tailscale-derp-update.sh"
+ssh root@192.168.x.x "/usr/bin/tailscale-derp-update.sh"
 ```
 
 脚本完成：写入规则块 → 备份原文件 → 重启 OpenClash 生效，输出 `已更新自定义规则文件 ...（88 条，备份于 ...bak）` 即成功。
@@ -268,8 +265,8 @@ ssh root@192.168.16.253 "/usr/bin/tailscale-derp-update.sh"
 ### 8.6 验证规则生效
 
 ```powershell
-ssh root@192.168.16.253 "grep -n 'BEGIN tailscale-derp' /etc/openclash/custom/openclash_custom_rules.list; grep -c '^- IP-CIDR,' /etc/openclash/custom/openclash_custom_rules.list"
-ssh root@192.168.16.253 "tailscale netcheck"
+ssh root@192.168.x.x "grep -n 'BEGIN tailscale-derp' /etc/openclash/custom/openclash_custom_rules.list; grep -c '^- IP-CIDR,' /etc/openclash/custom/openclash_custom_rules.list"
+ssh root@192.168.x.x "tailscale netcheck"
 ```
 
 ### 8.7 配置定时自动更新
@@ -277,7 +274,7 @@ ssh root@192.168.16.253 "tailscale netcheck"
 每日凌晨4:10静默执行（`-q` 仅写系统日志）：
 
 ```powershell
-ssh root@192.168.16.253 "echo '10 4 * * * /usr/bin/tailscale-derp-update.sh -q' >> /etc/crontabs/root && /etc/init.d/cron restart && echo CRON_OK"
+ssh root@192.168.x.x "echo '10 4 * * * /usr/bin/tailscale-derp-update.sh -q' >> /etc/crontabs/root && /etc/init.d/cron restart && echo CRON_OK"
 ```
 
 得益于幂等设计，IP 列表无变化时不写文件、不重启 OpenClash。
@@ -287,7 +284,7 @@ ssh root@192.168.16.253 "echo '10 4 * * * /usr/bin/tailscale-derp-update.sh -q' 
 OpenWrt 的 sysupgrade 默认不保留 `/usr/bin` 下自定义文件，加入保留清单：
 
 ```powershell
-ssh root@192.168.16.253 "echo '/usr/bin/tailscale-derp-update.sh' >> /etc/sysupgrade.conf && echo OK"
+ssh root@192.168.x.x "echo '/usr/bin/tailscale-derp-update.sh' >> /etc/sysupgrade.conf && echo OK"
 ```
 
 规则块本身位于 `/etc/openclash/custom/`，属 sysupgrade 保留区，重启与升级均不丢失；只有脚本本体需要上述保护。

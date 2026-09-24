@@ -128,6 +128,7 @@ Pages 未配自定义域名时会自动回退到 `https://<用户名>.github.io/
 3. **网络能力的边界**（2026-09-23 实测，修正了此前"agent 读不到 GitHub API"的判断）：
    - ✅ **GitHub 的运行结果能读到**：用 `web_fetch` 请求 `https://api.github.com/repos/wxg007post/blog/actions/runs?per_page=3` 返回 **200**，含 `head_sha`、`status`、`conclusion`、起止时间（靠它确认了 `77d4707` 的 run #10 成功）。harness 出口的匿名配额实测是正常的 **60 次/小时**（`/rate_limit` 返回 `remaining: 55`），而此前本机出口 IP 的匿名限流长期为 0——**两条出口不一样**，所以这条路可用；
    - ✅ **注解正文也能读到**（旧结论"注解是前端渲染、读不到"同样被推翻）：`check-runs` 的返回里带 `annotations_url`，再请求一次就拿到注解原文——实测返回 `{"annotation_level":"notice","message":"The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. …"}`。路径：`/repos/<owner>/<repo>/commits/<sha>/check-runs` → 取每个 job 的 `annotations_url` → 请求它。**以后 CI 报错，agent 可以自己读注解，不必再让你复制运行页面上的文字**；
+   - ⚠️ **但前提是本机 DNS 没被 fake-ip 劫持**（2026-09-24 当天实测到反转）：同日晚些时候所有 `web_fetch` 开始失败，报 `URL hostname "api.github.com" resolves to a non-public IP address`——本机 DNS 把它解析成 `198.18.0.18`（OpenClash 的 fake-ip 段，`example.com` 也一样解析成 `198.18.8.211`），harness 拒绝访问非公网地址。**能不能读取决于当时的 DNS 状态**；读不到时，请把 Actions 页面上的注解文字复制给 agent；
    - ❌ **本站在 agent 侧打不开**：DSH 沙箱里命令行没有网络出口（`curl` 报 `schannel: SEC_E_NO_CREDENTIALS`，`Invoke-WebRequest` 报"基础连接已经关闭"）；`web_fetch` 虽能上外网（`example.com` 实测 200），但对本站域名失败——Cloudflare 拦 datacenter 出口（DNS 本身正常：解析到 `104.21.32.203` / `172.67.187.117`）。**线上效果请自己在浏览器确认**（呼应上面第 4 条）。
 
 ## ⚠️ 域名到期日（待你填写）
