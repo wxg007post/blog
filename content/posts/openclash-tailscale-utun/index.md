@@ -195,7 +195,7 @@ cmp -s "$TMP_OLD" "$TMP_BODY" && { log "列表无变化，不写文件、不重�
 
 ```
 ##BEGIN tailscale-derp   ↓ ↓ ↓ 以下由 tailscale-derp-update.sh 自动维护，勿手工编辑 ↓ ↓ ↓
-##updated: 2026-09-04 13:20:15   count: 89
+##updated: 2026-09-04 13:20:15   count: 88
 - IP-CIDR,5.161.218.233/32,DIRECT
 - IP-CIDR,45.159.97.61/32,DIRECT
 ...
