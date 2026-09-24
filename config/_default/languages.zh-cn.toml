@@ -17,7 +17,7 @@ title = "时光笔记"
   name = "WXG"
   image = "img/avatar.jpg"
   headline = "随便记点什么，只是做个记录。"
-  bio = "NAS、Docker、OpenWrt、软路由、游戏攻略 —— 折腾过的东西，在这里留个记录。"
+  bio = ""
   links = [
     { github = "https://github.com/wxg007post" },
   ]
