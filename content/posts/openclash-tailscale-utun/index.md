@@ -1,7 +1,7 @@
 ---
 title: Tailscale 在 OpenClash 代理环境下自动打洞成功方案
 date: 2026-09-24T11:25:17+08:00
-lastmod: 2026-09-24
+lastmod: 2026-09-28
 draft: false
 description: 定时从 Tailscale 官方公开接口拉取 DERP 服务器 IP 列表，自动生成直连规则并写入 OpenClash 自定义规则文件，使Tailscale打洞探测流量正常。
 categories:
@@ -9,13 +9,14 @@ categories:
 tags:
   - 软路由
   - OpenWrt
-  - ImmortalWrt
   - OpenClash
   - Tailscale
+  - STUN
 showHero: true
 heroStyle: big
 showTableOfContents: true
 showTaxonomies: true
+slug: openclash-tailscale-utun
 ---
 ## 一、概述
 
@@ -24,6 +25,8 @@ showTaxonomies: true
 根因不在 Tailscale 本身，而在于 OpenClash 的透明代理接管了路由器**自身**的出站流量，把 Tailscale 用于 NAT 打洞的探测包一并送进了代理通道，导致它拿不到正确的公网端点。
 
 本文的方案是：定时从 Tailscale 官方公开接口拉取 DERP 服务器 IP 列表，自动生成直连规则并写入 OpenClash 自定义规则文件，使Tailscale打洞探测流量正常。部署完成后全自动运行，无需人工干预。
+
+本方案由AI完成，本文也是在AI辅助下编写。原创方案，转载请注明出处，谢谢。
 
 ---
 
@@ -122,9 +125,10 @@ Tailscale 官方提供公开的 DERP 清单接口，返回全部区域与节点�
 
 ```
 主用：https://controlplane.tailscale.com/derpmap/default
-备用：https://login.tailscale.com/derpmap/default于是方案变得直接：**定时拉取 → 提取全部节点 IPv4 → 去重排序 → 生成 `IP-CIDR,x.x.x.x/32,DIRECT` 规则 → 写入 OpenClash 自定义规则文件 → 重启生效**。
+备用：https://login.tailscale.com/derpmap/default
 ```
 
+于是方案变得直接：**定时拉取 → 提取全部节点 IPv4 → 去重排序 → 生成 `IP-CIDR,x.x.x.x/32,DIRECT` 规则 → 写入 OpenClash 自定义规则文件 → 重启生效**。
 通过脚本定时拉取官方 DERP IP 列表，生成 `IP-CIDR` 直连规则写入自定义规则文件，OpenClash 启动时会将其**前置到整个规则链最前面**，优先于后续各类策略与兜底规则命中。
 
 ---
@@ -175,7 +179,7 @@ extract_ips() {
 
 ### 7.5 幂等性
 
-这是最容易踩的坑，我们需要只比对块内的实际规则内容，当列表无变化时，不写规则文件、不重启Openclash，避免**即使 IP 毫无变化也会每天写文件并重启 OpenClash**：
+只比对块内的实际规则内容，当列表无变化时，不写规则文件、不重启Openclash，避免**即使 IP 毫无变化也会每天写文件并重启 OpenClash**：
 
 ```sh
 awk -v b="$MARK_BEGIN" -v e="$MARK_END" '

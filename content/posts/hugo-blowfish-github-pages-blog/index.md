@@ -1,14 +1,17 @@
 ---
-title: "用 Hugo + Blowfish 在 GitHub Pages 上搭一个中文博客"
+title: 用 Hugo + Blowfish 在 GitHub Pages 上搭一个中文博客
 date: 2026-09-23T08:48:17+08:00
 lastmod: 2026-09-23
 draft: false
-slug: "hugo-blowfish-github-pages-blog"
-description: "从零搭起这个博客的完整过程：为什么选 Hugo + Blowfish、怎么做到推送即上线，以及踩到的一堆坑——搭建期的 8 个，加上绑定自定义域名后才暴露的 3 个（基地址没跟上域名、Pages 未启用、绝对地址全是 http）。"
-categories: ["折腾记录"]
-tags: ["Hugo", "GitHub Pages"]
+slug: hugo-blowfish-github-pages-blog
+description: 从零搭起这个博客的完整过程：为什么选 Hugo + Blowfish、怎么做到推送即上线，以及踩到的一堆坑——搭建期的 8 个，加上绑定自定义域名后才暴露的 3 个（基地址没跟上域名、Pages 未启用、绝对地址全是 http）。
+categories:
+  - 折腾记录
+tags:
+  - Hugo
+  - GitHub_Pages
 showHero: true
-heroStyle: "big"
+heroStyle: big
 showTableOfContents: true
 showTaxonomies: true
 ---
