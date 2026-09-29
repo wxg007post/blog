@@ -519,7 +519,9 @@ chain openclash_mangle_output { # handle 103        ← 从 588 变成 103，fw4
 
 ## 附录：完整脚本与命令速查
 
-### A. 持久化脚本（写入 `/etc/openclash/custom/openclash_custom_firewall_rules.sh`）
+### A. 持久化脚本
+
+写入 `/etc/openclash/custom/openclash_custom_firewall_rules.sh`
 
 ```sh
 #!/bin/sh
