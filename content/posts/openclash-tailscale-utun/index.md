@@ -11,7 +11,7 @@ tags:
   - OpenWrt
   - OpenClash
   - Tailscale
-  - STUN
+  - 打洞
 showHero: true
 heroStyle: big
 showTableOfContents: true

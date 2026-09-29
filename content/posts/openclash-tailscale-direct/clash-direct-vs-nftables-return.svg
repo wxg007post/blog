@@ -1,0 +1,65 @@
+<svg viewBox="0 0 680 392" width="100%" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>为什么 SRC-PORT,41641,DIRECT 无效而 nftables return 有效</title>
+<desc>透明代理分两阶段：阶段一内核 nftables 无条件打 mark 把包送进 utun，clash 规则管不到；阶段二包进 mihomo 后 DIRECT 才生效。但问题已在阶段一发生，mihomo DIRECT 即使命中，包也已过内核打标与策略路由；正确修复点在更上游的 nftables 捕获阶段。nftables return 在阶段一之前跳过 mark，包始终走 tailscaled 自己的 socket。</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+
+<text x="40" y="30" font-family="-apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif" font-size="14" font-weight="500" fill="#1a1a1a">两段式：拦截（内核）vs 路由（clash 规则）</text>
+
+<rect x="28" y="78" width="624" height="168" rx="12" fill="#F7F6F3" stroke="#C9C7BE" stroke-width="0.5"/>
+<text x="44" y="66" font-family="-apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif" font-size="12" fill="#A32D2D">做法 A：SRC-PORT,41641,DIRECT（无效）　—　阶段① 拦截由内核完成，clash 规则拦不住</text>
+
+<g>
+<rect x="44" y="96" width="150" height="56" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="0.5"/>
+<text x="119" y="118" text-anchor="middle" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="13" font-weight="500" fill="#791F1F">tailscaled 发包</text>
+<text x="119" y="136" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="12" fill="#A32D2D">UDP src 41641</text>
+</g>
+<g>
+<rect x="226" y="96" width="184" height="56" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="0.5"/>
+<text x="318" y="118" text-anchor="middle" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="13" font-weight="500" fill="#791F1F">内核 OUTPUT</text>
+<text x="318" y="136" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="12" fill="#A32D2D">mark 0x162 → utun</text>
+</g>
+<g>
+<rect x="440" y="96" width="156" height="56" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="0.5"/>
+<text x="518" y="118" text-anchor="middle" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="13" font-weight="500" fill="#791F1F">mihomo 判 DIRECT</text>
+<text x="518" y="136" text-anchor="middle" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="12" fill="#A32D2D">规则此时才生效</text>
+</g>
+<g>
+<rect x="440" y="168" width="156" height="56" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="0.5"/>
+<text x="518" y="190" text-anchor="middle" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="13" font-weight="500" fill="#791F1F">重新发包出网</text>
+<text x="518" y="208" text-anchor="middle" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="12" fill="#A32D2D">包已进 TUN 路径</text>
+</g>
+
+<line x1="194" y1="124" x2="222" y2="124" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="410" y1="124" x2="436" y2="124" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="518" y1="152" x2="518" y2="164" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<text x="44" y="248" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="12" fill="#791F1F">→ 包已被送进 TUN，问题发生在阶段①；在 clash 规则层补救不是正确修复点</text>
+
+<rect x="28" y="266" width="624" height="106" rx="12" fill="#F4F8EF" stroke="#B9CFA0" stroke-width="0.5"/>
+<text x="44" y="256" font-family="-apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif" font-size="12" fill="#3B6D11">做法 B：nftables udp sport 41641 return（有效）　—　在阶段① 之前就跳过 mark</text>
+
+<g>
+<rect x="44" y="284" width="150" height="56" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+<text x="119" y="306" text-anchor="middle" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="13" font-weight="500" fill="#27500A">tailscaled 发包</text>
+<text x="119" y="324" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="12" fill="#3B6D11">UDP src 41641</text>
+</g>
+<g>
+<rect x="226" y="284" width="208" height="56" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+<text x="330" y="306" text-anchor="middle" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="13" font-weight="500" fill="#27500A">OUTPUT: udp sport 41641 return</text>
+<text x="330" y="324" text-anchor="middle" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="12" fill="#3B6D11">跳过 mark，不进 utun</text>
+</g>
+<g>
+<rect x="466" y="284" width="150" height="56" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+<text x="541" y="306" text-anchor="middle" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="13" font-weight="500" fill="#27500A">真实 WAN 发出</text>
+<text x="541" y="324" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="12" fill="#3B6D11">src 41641 原样</text>
+</g>
+
+<line x1="194" y1="312" x2="222" y2="312" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="434" y1="312" x2="462" y2="312" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<text x="44" y="372" font-family="-apple-system,'Segoe UI','Microsoft YaHei',sans-serif" font-size="12" fill="#27500A">→ WAN:41641 与通告 endpoint 一致 → 直连成功</text>
+</svg>
